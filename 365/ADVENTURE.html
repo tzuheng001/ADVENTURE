@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="zh-TW" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Adventure·365 : VR虛擬實境基地 | Tech Impact</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700;900&family=Orbitron:wght@400;500;700;900&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS (CDN) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- GSAP & ScrollTrigger -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+    
+    <!-- Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+    
+    <!-- Anime.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+    
+    <!-- Iconify -->
+    <script src="https://code.iconify.design/iconify-icon/1.0.8/iconify-icon.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        tech: ['Orbitron', 'sans-serif'],
+                        body: ['"Noto Sans TC"', 'sans-serif'],
+                    },
+                    colors: {
+                        neon: {
+                            cyan: '#00F0FF',
+                            pink: '#FF003C',
+                            dark: '#05050A',
+                            panel: 'rgba(5, 5, 10, 0.65)'
+                        }
+                    },
+                    backgroundImage: {
+                        'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Base & Noise */
+        body {
+            background-color: #05050A;
+            color: #ffffff;
+            font-family: 'Noto Sans TC', sans-serif;
+            overflow-x: hidden;
+        }
+        
+        .noise-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            pointer-events: none;
+            opacity: 0.04;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+        }
+
+        /* Typography & Glow */
+        .text-glow-cyan {
+            text-shadow: 0 0 10px rgba(0, 240, 255, 0.7), 0 0 20px rgba(0, 240, 255, 0.4);
+        }
+        .text-glow-pink {
+            text-shadow: 0 0 10px rgba(255, 0, 60, 0.7), 0 0 20px rgba(255, 0, 60, 0.4);
+        }
+        .box-glow-cyan {
+            box-shadow: 0 0 15px rgba(0, 240, 255, 0.4), inset 0 0 10px rgba(0, 240, 255, 0.2);
+        }
+
+        /* Glassmorphism */
+        .glass-panel {
+            background: rgba(5, 5, 15, 0.5);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(0, 240, 255, 0.15);
+        }
+
+        /* 1px Border Beam Effect */
+        .border-beam-container {
+            position: relative;
+            border-radius: 1rem;
+            overflow: hidden;
+            background: #05050A;
+            z-index: 1;
+        }
+        .border-beam-container::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: conic-gradient(
+                transparent, 
+                transparent 70%, 
+                #00F0FF 90%, 
+                #FF003C 100%
+            );
+            animation: rotate-beam 4s linear infinite;
+            z-index: -2;
+        }
+        .border-beam-container::after {
+            content: '';
+            position: absolute;
+            inset: 1px; /* 1px border width */
+            background: rgba(10, 10, 18, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: inherit;
+            z-index: -1;
+        }
+        @keyframes rotate-beam {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Scrollbar styling */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #05050A; }
+        ::-webkit-scrollbar-thumb { background: #00F0FF; border-radius: 4px; }
+        
+        /* ThreeJS Canvas */
+        #webgl-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            pointer-events: none;
+        }
+        
+        /* Magnetic Button Wrapper */
+        .magnetic-wrap {
+            display: inline-block;
+            position: relative;
+        }
+    </style>
+</head>
+<body class="antialiased selection:bg-neon-cyan selection:text-black">
+
+    <!-- Noise Texture Overlay -->
+    <div class="noise-overlay"></div>
+
+    <!-- Navigation -->
+    <header class="fixed top-0 w-full z-50 transition-all duration-300" id="navbar">
+        <div class="glass-panel mx-auto max-w-7xl mt-4 px-6 py-4 rounded-2xl flex justify-between items-center">
+            <a href="#" class="flex items-center gap-2 group">
+                <iconify-icon icon="mdi:virtual-reality" class="text-3xl text-neon-cyan group-hover:text-neon-pink transition-colors duration-300"></iconify-icon>
+                <span class="font-tech font-bold text-xl tracking-wider text-white">ADVENTURE<span class="text-neon-cyan">·365</span></span>
+            </a>
+            
+            <nav class="hidden md:flex gap-8 items-center">
+                <a href="#hero" class="text-sm font-medium hover:text-neon-cyan transition-colors tracking-widest">基地首頁</a>
+                <a href="#features" class="text-sm font-medium hover:text-neon-cyan transition-colors tracking-widest">核心技術</a>
+                <a href="#cta" class="text-sm font-medium hover:text-neon-cyan transition-colors tracking-widest">預約體驗</a>
+            </nav>
+            
+            <div class="magnetic-wrap">
+                <a href="#cta" class="magnetic-btn relative inline-flex items-center justify-center px-6 py-2.5 overflow-hidden font-tech font-bold text-sm tracking-widest text-white bg-transparent border border-neon-cyan rounded-full hover:bg-neon-cyan hover:text-black transition-all duration-300 box-glow-cyan">
+                    <span class="text-center">立即體驗</span>
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section id="hero" class="relative min-h-screen flex items-center justify-center overflow-hidden pt-20">
+        <!-- Background Image with Gradient Mask -->
+        <div class="absolute inset-0 z-0">
+            <img src="https://images.unsplash.com/photo-1617802690992-15d93263d3a9?auto=format&fit=crop&w=1920&q=80" alt="VR Virtual Reality" class="w-full h-full object-cover object-center opacity-40">
+            <div class="absolute inset-0 bg-gradient-to-b from-neon-dark/80 via-neon-dark/90 to-[#05050A]"></div>
+            <div class="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-neon-cyan/10 via-transparent to-transparent"></div>
+        </div>
+
+        <!-- Three.js Container -->
+        <div id="webgl-container"></div>
+
+        <!-- Content -->
+        <div class="relative z-10 max-w-7xl mx-auto px-6 flex flex-col items-center text-center">
+            
+            <!-- Floating Tech Elements -->
+            <div class="hero-anim flex items-center gap-3 mb-6 px-4 py-1.5 rounded-full glass-panel border border-neon-cyan/30 max-w-[90vw] md:max-w-none">
+                <span class="relative flex h-2 w-2 flex-shrink-0">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-neon-cyan opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-2 w-2 bg-neon-cyan"></span>
+                </span>
+                <span class="text-[10px] sm:text-xs font-tech tracking-[0.1em] md:tracking-[0.2em] text-neon-cyan uppercase whitespace-nowrap overflow-hidden text-ellipsis">
+                    System Online // Version 3.6.5
+                </span>
+            </div>
+
+            <h1 class="hero-anim font-tech text-3xl sm:text-4xl md:text-7xl lg:text-8xl font-black tracking-tighter mb-4 leading-tight px-4">
+                ADVENTURE<span class="text-neon-cyan text-glow-cyan">·365</span><br>
+                <span class="font-body text-2xl md:text-6xl text-transparent bg-clip-text bg-gradient-to-r from-white via-gray-300 to-gray-500 font-bold tracking-widest mt-2 block">VR虛擬實境基地</span>
+            </h1>
+
+            <p class="hero-anim font-body text-lg md:text-2xl font-light tracking-[0.3em] text-gray-300 mt-6 mb-12 flex flex-col md:flex-row gap-4 md:gap-6 items-center">
+                <span>沉浸體驗</span>
+                <span class="hidden md:block text-neon-pink">|</span>
+                <span class="block md:hidden h-[1px] w-12 bg-neon-pink"></span>
+                <span>創新技術</span>
+                <span class="hidden md:block text-neon-pink">|</span>
+                <span class="block md:hidden h-[1px] w-12 bg-neon-pink"></span>
+                <span>感官震撼</span>
+            </p>
+
+            <div class="hero-anim magnetic-wrap mt-4">
+                <a href="#cta" class="magnetic-btn group relative inline-flex items-center justify-center px-10 py-5 font-tech font-bold text-lg tracking-widest text-black bg-neon-cyan rounded-full overflow-hidden box-glow-cyan transition-transform">
+                    <div class="absolute inset-0 w-full h-full bg-gradient-to-r from-neon-cyan via-white to-neon-cyan opacity-0 group-hover:opacity-50 transition-opacity duration-500 rounded-full blur-md"></div>
+                    <span class="relative z-10 flex items-center gap-2">
+                        立即體驗 <iconify-icon icon="mdi:arrow-right" class="text-xl group-hover:translate-x-1 transition-transform"></iconify-icon>
+                    </span>
+                </a>
+            </div>
+            
+            
+        </div>
+    </section>
+
+    <!-- Value Proposition / Features Section -->
+    <section id="features" class="relative py-32 bg-[#05050A]">
+        <div class="max-w-7xl mx-auto px-6 relative z-10">
+            <div class="text-center mb-20 section-header">
+                <h2 class="font-tech text-3xl md:text-5xl font-bold tracking-widest mb-4">
+                    CORE <span class="text-neon-pink text-glow-pink">IMPACT</span>
+                </h2>
+                <div class="h-1 w-24 bg-gradient-to-r from-neon-cyan to-neon-pink mx-auto"></div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-12">
+                <!-- Card 1 -->
+                <div class="feature-card border-beam-container p-1 group">
+                    <div class="relative h-full rounded-[0.85rem] p-8 overflow-hidden flex flex-col">
+                        <div class="absolute top-0 right-0 p-4 opacity-10 transform translate-x-4 -translate-y-4 group-hover:scale-110 transition-transform duration-700">
+                            <iconify-icon icon="mdi:eye-circle" class="text-9xl text-neon-cyan"></iconify-icon>
+                        </div>
+                        <div class="w-16 h-16 rounded-full glass-panel flex items-center justify-center mb-6 border border-neon-cyan/50 text-neon-cyan box-glow-cyan z-10">
+                            <iconify-icon icon="mdi:eye-outline" class="text-3xl"></iconify-icon>
+                        </div>
+                        <h3 class="font-body text-2xl font-bold mb-4 tracking-wider z-10">沉浸體驗</h3>
+                        <p class="text-gray-400 leading-relaxed font-light tracking-wide z-10 flex-grow">
+                            突破現實邊界，360度全景視野結合空間音效，讓您瞬間穿梭至異星戰場或深海秘境，實現100%全感官包覆。
+                        </p>
+                        <div class="mt-8 h-48 rounded-lg overflow-hidden relative z-10">
+                            <img src="image/1.png" alt="Immersive" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 opacity-90 group-hover:opacity-100">
+                            <div class="absolute inset-0 bg-neon-cyan mix-blend-overlay opacity-20"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card 2 -->
+                <div class="feature-card border-beam-container p-1 group mt-0 md:mt-12">
+                    <div class="relative h-full rounded-[0.85rem] p-8 overflow-hidden flex flex-col">
+                        <div class="absolute top-0 right-0 p-4 opacity-10 transform translate-x-4 -translate-y-4 group-hover:scale-110 transition-transform duration-700">
+                            <iconify-icon icon="mdi:cpu-64-bit" class="text-9xl text-neon-pink"></iconify-icon>
+                        </div>
+                        <div class="w-16 h-16 rounded-full glass-panel flex items-center justify-center mb-6 border border-neon-pink/50 text-neon-pink shadow-[0_0_15px_rgba(255,0,60,0.4)] z-10">
+                            <iconify-icon icon="mdi:rocket-launch-outline" class="text-3xl"></iconify-icon>
+                        </div>
+                        <h3 class="font-body text-2xl font-bold mb-4 tracking-wider z-10">創新技術</h3>
+                        <p class="text-gray-400 leading-relaxed font-light tracking-wide z-10 flex-grow">
+                            搭載次世代 WebGL 與光線追蹤運算引擎，超低延遲毫秒級回饋，捕捉每一次微小動作，重新定義互動極限。
+                        </p>
+                        <div class="mt-8 h-48 rounded-lg overflow-hidden relative z-10">
+
+                            <img src="image/2.png" alt="Innovative" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 opacity-90 group-hover:opacity-100">
+                            <div class="absolute inset-0 bg-white mix-blend-overlay opacity-20"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card 3 -->
+                <div class="feature-card border-beam-container p-1 group mt-0 md:mt-24">
+                    <div class="relative h-full rounded-[0.85rem] p-8 overflow-hidden flex flex-col">
+                        <div class="absolute top-0 right-0 p-4 opacity-10 transform translate-x-4 -translate-y-4 group-hover:scale-110 transition-transform duration-700">
+                            <iconify-icon icon="mdi:lightning-bolt-circle" class="text-9xl text-white"></iconify-icon>
+                        </div>
+                        <div class="w-16 h-16 rounded-full glass-panel flex items-center justify-center mb-6 border border-white/50 text-white shadow-[0_0_15px_rgba(255,255,255,0.4)] z-10">
+                            <iconify-icon icon="mdi:lightning-bolt-outline" class="text-3xl"></iconify-icon>
+                        </div>
+                        <h3 class="font-body text-2xl font-bold mb-4 tracking-wider z-10">感官震撼</h3>
+                        <p class="text-gray-400 leading-relaxed font-light tracking-wide z-10 flex-grow">
+                            結合物理力學模擬艙與高階觸覺反饋服裝，讓爆炸的衝擊、狂風的呼嘯，每一秒都直擊靈魂深處。
+                        </p>
+                        <div class="mt-8 h-48 rounded-lg overflow-hidden relative z-10">
+                            <img src="image/3.png" alt="Sensory" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 opacity-90 group-hover:opacity-100">
+                            <div class="absolute inset-0 bg-white mix-blend-overlay opacity-20"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Final CTA Section -->
+    <section id="cta" class="relative py-32 flex items-center justify-center overflow-hidden">
+        <div class="absolute inset-0 z-0">
+            <img src="https://images.unsplash.com/photo-1620641788421-7a1c342ea42e?auto=format&fit=crop&w=1920&q=80" alt="Abstract Neon" class="w-full h-full object-cover object-center opacity-30">
+            <div class="absolute inset-0 bg-[#05050A] opacity-80"></div>
+            <div class="absolute inset-0 bg-[radial-gradient(circle_at_center,_transparent_0%,_#05050A_70%)]"></div>
+        </div>
+
+        <div class="relative z-10 max-w-2xl mx-auto px-6 w-full cta-content">
+            <div class="text-center mb-10">
+                <h2 class="font-tech text-4xl md:text-5xl font-black mb-4 tracking-tighter">
+                    JOIN THE <span class="text-transparent bg-clip-text bg-gradient-to-r from-neon-cyan to-neon-pink">REVOLUTION</span>
+                </h2>
+                <p class="font-body text-gray-400 tracking-widest uppercase text-sm">填寫預約表單，立即預約體驗</p>
+            </div>
+
+            <div class="border-beam-container p-1">
+                <form id="contact-form" action="https://formspree.io/f/mojpkjgp" method="POST"
+                      class="relative rounded-[0.85rem] p-8 md:p-10 flex flex-col gap-6 bg-white/95 backdrop-blur-2xl shadow-[0_0_40px_rgba(255,255,255,0.1)]">
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="flex flex-col gap-2">
+                            <label for="name" class="font-tech text-xs tracking-[0.2em] text-gray-900 uppercase font-bold">User Identity / 姓名</label>
+                            <input type="text" name="name" id="name" required placeholder="您的姓名..."
+                                   class="bg-gray-100 border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:border-neon-cyan transition-all text-gray-900">
+                        </div>
+                        <div class="flex flex-col gap-2">
+                            <label for="email" class="font-tech text-xs tracking-[0.2em] text-gray-900 uppercase font-bold">Comms Link / 電子郵件</label>
+                            <input type="email" name="email" id="email" required placeholder="email@address.com"
+                                   class="bg-gray-100 border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:border-neon-cyan transition-all text-gray-900">
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col gap-2">
+                        <label for="experience" class="font-tech text-xs tracking-[0.2em] text-gray-900 uppercase font-bold">Select Mission / 體驗項目</label>
+                        <select name="experience" id="experience" required
+                                class="bg-gray-100 border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:border-neon-cyan transition-all text-gray-900 appearance-none">
+                            <option value="" disabled selected>請選擇體驗項目...</option>
+                            <option value="pyramid">失落的金字塔</option>
+                            <option value="zombie">屍控裂痕</option>
+                            <option value="invasion">入侵之日</option>
+                            <option value="sports">全民運動王</option>
+                        </select>
+                    </div>
+
+                    <div id="experience-preview" class="w-full h-80 rounded-lg overflow-hidden hidden bg-gray-200 border border-gray-200 shadow-inner">
+                        <img id="preview-img" src="" alt="Experience Preview" class="w-full h-full object-cover transition-opacity duration-500 opacity-0">
+                    </div>
+
+                    <div class="flex flex-col gap-2">
+                        <label for="date" class="font-tech text-xs tracking-[0.2em] text-gray-900 uppercase font-bold">Operation Date / 體驗日期</label>
+                        <input type="date" name="date" id="date" required
+                               class="bg-gray-100 border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:border-neon-cyan transition-all text-gray-900">
+                    </div>
+
+                    <div class="magnetic-wrap mt-2">
+                        <button type="submit" id="submit-btn" class="magnetic-btn w-full group relative flex items-center justify-center px-8 py-4 font-tech font-bold text-lg tracking-[0.3em] text-black bg-transparent overflow-hidden transition-all duration-300">
+                            <span class="absolute inset-0 border-2 border-neon-pink rounded-lg box-glow-pink"></span>
+                            <span class="absolute inset-0 bg-neon-pink translate-y-full group-hover:translate-y-0 transition-transform duration-500 ease-out z-0"></span>
+                            <span class="relative z-10 flex items-center justify-center gap-2 md:gap-3 group-hover:text-white transition-colors w-full">
+                                <iconify-icon icon="mdi:calendar-check" class="text-lg md:text-xl flex-shrink-0"></iconify-icon>
+                                <span class="text-sm sm:text-base md:text-xl font-tech tracking-wider md:tracking-[0.2em] whitespace-nowrap">
+                                    BOOKING NOW <span class="mx-1 opacity-50">/</span> 立即預約
+                                </span>
+                            </span>
+                        </button>
+                    </div>
+
+                    <p id="status" class="text-center font-body text-sm tracking-widest min-h-[1.5rem]"></p>
+                </form>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="bg-[#020205] py-8 border-t border-neon-cyan/20 relative z-10">
+        <div class="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="font-tech font-bold tracking-widest text-gray-400">
+                ADVENTURE<span class="text-neon-cyan">·365</span>
+            </div>
+            <div class="flex gap-6">
+                <a href="#" class="text-gray-500 hover:text-neon-cyan transition-colors"><iconify-icon icon="mdi:twitter" class="text-2xl"></iconify-icon></a>
+                <a href="#" class="text-gray-500 hover:text-neon-pink transition-colors"><iconify-icon icon="mdi:instagram" class="text-2xl"></iconify-icon></a>
+                <a href="#" class="text-gray-500 hover:text-white transition-colors"><iconify-icon icon="mdi:discord" class="text-2xl"></iconify-icon></a>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Scripts -->
+    <script>
+        // 1. Navbar Glassmorphism on Scroll
+        window.addEventListener('scroll', () => {
+            const navbar = document.getElementById('navbar').querySelector('.glass-panel');
+            if (window.scrollY > 50) {
+                navbar.classList.add('bg-opacity-90', 'border-neon-cyan/50');
+                navbar.classList.remove('mt-4');
+            } else {
+                navbar.classList.remove('bg-opacity-90', 'border-neon-cyan/50');
+                navbar.classList.add('mt-4');
+            }
+        });
+
+        // 2. Magnetic Button Effect
+        const magneticBtns = document.querySelectorAll('.magnetic-btn');
+        
+        magneticBtns.forEach((btn) => {
+            btn.addEventListener('mousemove', (e) => {
+                const rect = btn.getBoundingClientRect();
+                const h = rect.width / 2;
+                const v = rect.height / 2;
+                const x = e.clientX - rect.left - h;
+                const y = e.clientY - rect.top - v;
+
+                gsap.to(btn, {
+                    x: x * 0.4,
+                    y: y * 0.4,
+                    duration: 0.3,
+                    ease: "power2.out"
+                });
+            });
+
+            btn.addEventListener('mouseleave', () => {
+                gsap.to(btn, {
+                    x: 0,
+                    y: 0,
+                    duration: 0.5,
+                    ease: "elastic.out(1, 0.3)"
+                });
+            });
+        });
+
+        // 3. Anime.js Initial Reveal
+        anime({
+            targets: '.hero-anim',
+            translateY: [50, 0],
+            opacity: [0, 1],
+            duration: 1200,
+            delay: anime.stagger(200, {start: 300}),
+            easing: 'easeOutExpo'
+        });
+
+        // 4. GSAP Scroll Animations
+        gsap.registerPlugin(ScrollTrigger);
+
+        // Features Stagger
+        gsap.from(".feature-card", {
+            scrollTrigger: {
+                trigger: "#features",
+                start: "top 70%",
+            },
+            y: 100,
+            opacity: 0,
+            duration: 1,
+            stagger: 0.2,
+            ease: "power3.out"
+        });
+
+        gsap.from(".section-header", {
+            scrollTrigger: {
+                trigger: "#features",
+                start: "top 80%",
+            },
+            y: 30,
+            opacity: 0,
+            duration: 1,
+            ease: "power2.out"
+        });
+
+        // CTA Fade In
+        gsap.from(".cta-content", {
+            scrollTrigger: {
+                trigger: "#cta",
+                start: "top 75%",
+            },
+            scale: 0.9,
+            opacity: 0,
+            duration: 1.2,
+            ease: "back.out(1.7)"
+        });
+
+        // 5. Three.js Particle System (Background)
+        const initThreeJS = () => {
+            const container = document.getElementById('webgl-container');
+            const scene = new THREE.Scene();
+            
+            const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.z = 30;
+
+            const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            container.appendChild(renderer.domElement);
+
+            // Particles
+            const particlesGeometry = new THREE.BufferGeometry();
+            const particlesCount = 1500;
+            const posArray = new Float32Array(particlesCount * 3);
+
+            for(let i = 0; i < particlesCount * 3; i++) {
+                // Spread particles
+                posArray[i] = (Math.random() - 0.5) * 100;
+            }
+
+            particlesGeometry.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+
+            // Material
+            const material = new THREE.PointsMaterial({
+                size: 0.15,
+                color: 0x00F0FF,
+                transparent: true,
+                opacity: 0.8,
+                blending: THREE.AdditiveBlending
+            });
+
+            const particlesMesh = new THREE.Points(particlesGeometry, material);
+            scene.add(particlesMesh);
+
+            // Mouse interaction setup
+            let mouseX = 0;
+            let mouseY = 0;
+            let targetX = 0;
+            let targetY = 0;
+
+            const windowHalfX = window.innerWidth / 2;
+            const windowHalfY = window.innerHeight / 2;
+
+            document.addEventListener('mousemove', (event) => {
+                mouseX = (event.clientX - windowHalfX);
+                mouseY = (event.clientY - windowHalfY);
+            });
+
+            // Animation Loop
+            const clock = new THREE.Clock();
+
+            const animate = () => {
+                requestAnimationFrame(animate);
+                const elapsedTime = clock.getElapsedTime();
+
+                // Base rotation
+                particlesMesh.rotation.y = elapsedTime * 0.05;
+                particlesMesh.rotation.x = elapsedTime * 0.02;
+
+                // Mouse interaction easing
+                targetX = mouseX * 0.001;
+                targetY = mouseY * 0.001;
+                
+                particlesMesh.rotation.y += 0.05 * (targetX - particlesMesh.rotation.y);
+                particlesMesh.rotation.x += 0.05 * (targetY - particlesMesh.rotation.x);
+
+                renderer.render(scene, camera);
+            };
+
+            animate();
+
+            // Resize handling
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+        };
+
+        // Initialize Three.js on load
+        window.addEventListener('load', initThreeJS);
+
+
+
+        // 圖片路徑對照表
+        const experienceImages = {
+            'pyramid': 'image/4.png', // 失落的金字塔
+            'zombie': 'image/5.png',  // 屍控裂痕
+            'invasion': 'image/6.png', // 入侵之日
+            'sports': 'image/7.png'   // 全民運動王
+        };
+
+        const experienceSelect = document.getElementById('experience');
+        const previewContainer = document.getElementById('experience-preview');
+        const previewImg = document.getElementById('preview-img');
+
+        experienceSelect.addEventListener('change', function () {
+            const selectedValue = this.value;
+            const imageUrl = experienceImages[selectedValue];
+
+            // 新增：判斷是否為桌面版 (螢幕寬度 > 768px)
+            const isDesktop = window.innerWidth >= 768;
+
+            if (imageUrl && isDesktop) {
+                // 只有在桌面版才顯示圖片容器
+                previewContainer.classList.remove('hidden');
+
+                previewImg.classList.remove('opacity-100');
+                previewImg.classList.add('opacity-0');
+
+                setTimeout(() => {
+                    previewImg.src = imageUrl;
+                    previewImg.classList.remove('opacity-0');
+                    previewImg.classList.add('opacity-100');
+                }, 300);
+            } else {
+                // 如果是手機，或沒有選擇項目，則維持隱藏
+                previewContainer.classList.add('hidden');
+            }
+        });
+
+
+
+
+
+        // 表單處理邏輯
+        const form = document.getElementById("contact-form");
+        const status = document.getElementById("status");
+        const submitBtn = document.getElementById("submit-btn");
+
+        form.addEventListener("submit", async function (event) {
+            event.preventDefault();
+
+            const data = new FormData(event.target);
+
+            // 進入傳送狀態
+            submitBtn.disabled = true;
+            status.className = "text-center font-body text-sm tracking-widest text-blue-600 animate-pulse";
+            status.innerHTML = "[ 正在加密並傳送數據... ]";
+
+            fetch(event.target.action, {
+                method: 'POST',
+                body: data,
+                headers: { 'Accept': 'application/json' }
+            }).then(response => {
+                if (response.ok) {
+                    status.className = "text-center font-body text-sm tracking-widest text-green-700 font-bold";
+                    status.innerHTML = "SYSTEM: 預約數據已上傳成功。";
+
+                    form.reset(); 
+                    
+                    const previewContainer = document.getElementById('experience-preview');
+                    const previewImg = document.getElementById('preview-img');
+                    if (previewContainer) {
+                        previewContainer.classList.add('hidden'); 
+                        previewImg.src = ""; 
+                        previewImg.classList.replace('opacity-100', 'opacity-0'); 
+                    }
+                    
+                } else {
+                    response.json().then(data => {
+                        status.className = "text-center font-body text-sm tracking-widest text-neon-pink";
+                        if (Object.hasOwn(data, 'errors')) {
+                            status.innerHTML = "ERR: " + data["errors"].map(error => error["message"]).join(", ");
+                        } else {
+                            status.innerHTML = "ERR: 傳送協議發生未知的錯誤。";
+                        }
+                    })
+                }
+            }).catch(error => {
+                status.className = "text-center font-body text-sm tracking-widest text-neon-pink";
+                status.innerHTML = "ERR: 網路連線異常，請稍後再試。";
+            }).finally(() => {
+                submitBtn.disabled = false;
+                // 5秒後清除狀態訊息
+                setTimeout(() => { status.innerHTML = ""; }, 5000);
+            });
+        });
+
+    </script>
+</body>
+</html>
